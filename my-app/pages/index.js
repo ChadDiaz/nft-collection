@@ -62,9 +62,10 @@ export default function Home() {
         signer
       );
       // need a way to compare the current user address to the owner address
-      const owner = nftContract.owner();
-      const userAddress = signer.getAddress();
-      if (owner.toLowerCase() === userAddress.toLowerCase()) {
+      const _owner = nftContract.owner();
+      const singer = getProviderOrSigner(true);
+      const address = await signer.getAddress();
+      if (address.toLowerCase() === _owner.toLowerCase()) {
         setIsOwner(true);
       }
     } catch (error) {
@@ -185,6 +186,22 @@ export default function Home() {
       console.error(err);
       return false;
     }
+  };
+
+  //NOTE need a function to get the total number of tokenIds minted
+  const getTokenIdsMinted = async () => {
+    // only need a provider here
+    const provider = getProviderOrSigner();
+    // instantiate a contract
+    const nftContract = new Contract(
+      NFT_CONTRACT_ABI,
+      NFT_CONTRACT_ADDRESS,
+      provider
+    );
+    // get a variable for the tokens
+    const _tokenIds = await nftContract.tokenIds();
+    // tokenIds is a BIG number so we set it to a string
+    setTokenIdsMinted(_tokenIds.toString());
   };
 
   useEffect(() => {
