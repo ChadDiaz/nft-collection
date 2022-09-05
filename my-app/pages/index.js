@@ -108,7 +108,7 @@ export default function Home() {
         signer
       );
       // call the mint from the contract
-      const tx = await nftContract.publicMint({
+      const tx = await nftContract.mint({
         value: utils.parseEther('0.01'),
       });
       setLoading(true);
@@ -131,8 +131,10 @@ export default function Home() {
         signer
       );
       const txn = await nftContract.startPresale();
+      setLoading(true);
       await txn.await();
-      setPreSaleStarted(true);
+      setLoading(false);
+      await checkIfPresaleStarted();
     } catch (error) {
       console.error(error);
     }
@@ -149,9 +151,12 @@ export default function Home() {
         NFT_CONTRACT_ADDRESS,
         provider
       );
-      const isPresaleStarted = await nftContract.preSaleStarted();
-      setPreSaleStarted(isPresaleStarted);
-      return isPresaleStarted;
+      const _presaleStarted = await nftContract.preSaleStarted();
+      if (!_presaleStarted) {
+        await getOwner();
+      }
+      setPreSaleStarted(_presaleStarted);
+      return _presaleStarted;
     } catch (error) {
       console.error(error);
       return false;
