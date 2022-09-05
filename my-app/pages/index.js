@@ -173,14 +173,17 @@ export default function Home() {
         signer
       );
       //NOTE presaleEndTime returns a BIG NUMBER and a timestamp in seconds.  Date.now returns in milliseconds so we divide Date.now by 1000 to compare
-      const presaleEndTime = await nftContract.presaleEnded();
-      const currentTimeInSeconds = Date.now() / 1000;
-      const hasPresaleEnded = presaleEndTime.lt(
-        Math.floor(currentTimeInSeconds)
-      );
-      setPresaleEnded(hasPresaleEnded);
+      const _presaleEnded = await nftContract.presaleEnded();
+      const hasEnded = _presaleEnded.lt(Math.floor(Date.now() / 1000));
+      if (hasEnded) {
+        setPresaleEnded(true);
+      } else {
+        setPresaleEnded(false);
+      }
+      return hasEnded;
     } catch (err) {
       console.error(err);
+      return false;
     }
   };
 
