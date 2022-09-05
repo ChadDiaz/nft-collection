@@ -15,6 +15,8 @@ export default function Home() {
   const [presaleEnded, setPresaleEnded] = useState(false);
   // one to know if the owner is the one signed in
   const [isOwner, setIsOwner] = useState(false);
+  // one to keep track of the number of tokens that have been minted
+  const [tokenIdsMinted, setTokenIdsMinted] = useState('0');
   // one to tell the app when something is happening and need to wait
   const [loading, setLoading] = useState(false);
 
@@ -69,6 +71,32 @@ export default function Home() {
       console.error(error);
     }
   };
+
+  //NOTE we need a function to mint during the presale period
+  const presaleMint = async () => {
+    try {
+      // we need a signer here
+      const signer = await getProviderOrSigner(true);
+      const nftContract = new Contract(
+        NFT_CONTRACT_ABI,
+        NFT_CONTRACT_ADDRESS,
+        signer
+      );
+      // call the presale mint from the contract and ensure that only whitelisted addresses can mint
+      const tx = await nftContract.presaleMint({
+        // value of the presale mint - using the utils feature from ethers to parse the string to ether
+        value: utils.parseEther('0.001'),
+      });
+      setLoading(true);
+      // wait for the transaction to be mined
+      await tx.wait();
+      setLoading(false);
+      window.alert("You successfully minted a pre-sale NFT by Chad")
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   //NOTE we need  function to start the preSale only callable by the owner
   const startPresale = async () => {
     try {
