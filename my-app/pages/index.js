@@ -22,18 +22,6 @@ export default function Home() {
 
   // NOTE instantiate web3 model here
   const web3ModalRef = useRef();
-
-  // NOTE first thing we want to do is to connect our wallet with web3modal and ethers.js
-  const connectWallet = async () => {
-    try {
-      // await the helper function below
-      await getProviderOrSigner();
-      // update walletConnected to "true"
-      setWalletConnected(true);
-    } catch (err) {
-      console.error(err);
-    }
-  };
   // NOTE helper function to determine if signer and/ or provider is needed
   const getProviderOrSigner = async (needSigner = false) => {
     // we need a way to access the users provider, signer from Meta Mask
@@ -50,6 +38,17 @@ export default function Home() {
       return signer;
     }
     return web3Provider;
+  };
+  // NOTE first thing we want to do is to connect our wallet with web3modal and ethers.js
+  const connectWallet = async () => {
+    try {
+      // Get the provider from web3Modal, which in our case is MetaMask
+      // When used for the first time, it prompts the user to connect their wallet
+      await getProviderOrSigner();
+      setWalletConnected(true);
+    } catch (err) {
+      console.log(err);
+    }
   };
 
   //NOTE we need a helper function so that only the owner can see the button to start the presale
@@ -206,7 +205,7 @@ export default function Home() {
       console.error(err);
     }
   };
-
+  // NOTE useEffect to be called each time the state needs to re-render
   useEffect(() => {
     // if wallet is not connected, create a new instance of Web3Modal and connect the MetaMask wallet
     if (!walletConnected) {
@@ -322,7 +321,7 @@ export default function Home() {
         </div>
         <div>
           <img
-            src="./public/0.svg"
+            src="./public/cryptodev/0.svg"
             alt="crypto devs image"
             className={styles.image}
           />
