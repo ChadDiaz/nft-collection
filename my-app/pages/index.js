@@ -77,13 +77,13 @@ export default function Home() {
     try {
       // we need a signer here
       const signer = await getProviderOrSigner(true);
-      const nftContract = new Contract(
+      const whitelistContract = new Contract(
         NFT_CONTRACT_ABI,
         NFT_CONTRACT_ADDRESS,
         signer
       );
       // call the presale mint from the contract and ensure that only whitelisted addresses can mint
-      const tx = await nftContract.presaleMint({
+      const tx = await whitelistContract.presaleMint({
         // value of the presale mint - using the utils feature from ethers to parse the string to ether
         value: utils.parseEther('0.001'),
       });
@@ -91,7 +91,31 @@ export default function Home() {
       // wait for the transaction to be mined
       await tx.wait();
       setLoading(false);
-      window.alert("You successfully minted a pre-sale NFT by Chad")
+      window.alert('You successfully minted a pre-sale NFT by Chad');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  //NOTE we need a function to mint during the public sale/after presale
+  const publicMint = async () => {
+    try {
+      // anytime it is a write transaction - we need signer
+      const signer = await getProviderOrSigner(true);
+      const nftContract = new Contract(
+        NFT_CONTRACT_ABI,
+        NFT_CONTRACT_ADDRESS,
+        signer
+      );
+      // call the mint from the contract
+      const tx = await nftContract.publicMint({
+        value: utils.parseEther('0.01'),
+      });
+      setLoading(true);
+      // wait for the mint
+      await tx.wait();
+      setLoading(false);
+      window.alert("You've successfully minted a public NFT by Chad");
     } catch (err) {
       console.error(err);
     }
