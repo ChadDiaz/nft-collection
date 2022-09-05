@@ -23,7 +23,7 @@ export default function Home() {
   // NOTE instantiate web3 model here
   const web3ModalRef = useRef();
 
-  // first thing we want to do is to connect our wallet with web3modal and ethers.js
+  // NOTE first thing we want to do is to connect our wallet with web3modal and ethers.js
   const connectWallet = async () => {
     try {
       // await the helper function below
@@ -190,18 +190,21 @@ export default function Home() {
 
   //NOTE need a function to get the total number of tokenIds minted
   const getTokenIdsMinted = async () => {
-    // only need a provider here
-    const provider = getProviderOrSigner();
-    // instantiate a contract
-    const nftContract = new Contract(
-      NFT_CONTRACT_ABI,
-      NFT_CONTRACT_ADDRESS,
-      provider
-    );
-    // get a variable for the tokens
-    const _tokenIds = await nftContract.tokenIds();
-    // tokenIds is a BIG number so we set it to a string
-    setTokenIdsMinted(_tokenIds.toString());
+    try {
+      // only need a provider here
+      const provider = getProviderOrSigner();
+      const nftContract = new Contract(
+        NFT_CONTRACT_ABI,
+        NFT_CONTRACT_ADDRESS,
+        provider
+      );
+      // get a variable for the tokens
+      const _tokenIds = await nftContract.tokenIds();
+      // tokenIds is a BIG number so we set it to a string
+      setTokenIdsMinted(_tokenIds.toString());
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   useEffect(() => {
