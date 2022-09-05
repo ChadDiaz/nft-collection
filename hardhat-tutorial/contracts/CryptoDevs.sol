@@ -7,8 +7,7 @@ import "./IWhitelist.sol";
 
 contract CryptoDevs is ERC721Enumerable, Ownable {
   /**
-   * @dev _baseTokenURI for computing {tokenURI}. If set, the resulting URI for each
-   * token will be the concatenation of the `baseURI` and the `tokenId`.
+   * @dev _baseTokenURI for computing {tokenURI}. If set, the resulting URI for each token will be the concatenation of the `baseURI` and the `tokenId`.
    */
   string _baseTokenURI;
   //  _price is the price of one Crypto Dev NFT
