@@ -1,18 +1,22 @@
 import Head from 'next/head';
 import { useEffect, useRef, useState } from 'react';
-import { ethers, Contract } from 'ethers';
+import { ethers, Contract, utils } from 'ethers';
 import styles from '../styles/Home.module.css';
 import Web3Modal from 'web3modal';
 import { NFT_CONTRACT_ABI, NFT_CONTRACT_ADDRESS } from '../constants';
 
 export default function Home() {
-  // NOTE state variables
+  // SECTION STATE VARIABLES
   //first one - has the user connected to their wallet
   const [walletConnected, setWalletConnected] = useState(false);
-  // we need to be able to update state if the presale has started
-  const [preSaleStarted, setPreSaleStarted] = useSate(false);
+  // we need to be able to update state if the presale has started or stopped
+  const [preSaleStarted, setPreSaleStarted] = useState(false);
+  // we need to know if presale has ended
+  const [presaleEnded, setPresaleEnded] = useState(false);
   // one to know if the owner is the one signed in
   const [isOwner, setIsOwner] = useState(false);
+  // one to tell the app when something is happening and need to wait
+  const [loading, setLoading] = useState(false);
 
   // NOTE instantiate web3 model here
   const web3ModalRef = useRef();
@@ -60,7 +64,6 @@ export default function Home() {
       const userAddress = signer.getAddress();
       if (owner.toLowerCase() === userAddress.toLowerCase()) {
         setIsOwner(true);
-        
       }
     } catch (error) {
       console.error(error);
@@ -96,21 +99,128 @@ export default function Home() {
       );
       const isPresaleStarted = await nftContract.preSaleStarted();
       setPreSaleStarted(isPresaleStarted);
+      return isPresaleStarted;
     } catch (error) {
       console.error(error);
+      return false;
+    }
+  };
+
+  //NOTE we need a function to see if the presale has ended only called by the owner
+  const checkIfPresaleEnded = async () => {
+    try {
+      const signer = await getProviderOrSigner();
+      const nftContract = new Contract(
+        NFT_CONTRACT_ABI,
+        NFT_CONTRACT_ADDRESS,
+        signer
+      );
+      //NOTE presaleEndTime returns a BIG NUMBER and a timestamp in seconds.  Date.now returns in milliseconds so we divide Date.now by 1000 to compare
+      const presaleEndTime = await nftContract.presaleEnded();
+      const currentTimeInSeconds = Date.now() / 1000;
+      const hasPresaleEnded = presaleEndTime.lt(
+        Math.floor(currentTimeInSeconds)
+      );
+      setPresaleEnded(hasPresaleEnded);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   useEffect(() => {
+    // if wallet is not connected, create a new instance of Web3Modal and connect the MetaMask wallet
     if (!walletConnected) {
+      // Assign the Web3Modal class to the reference object by setting it's `current` value
+      // The `current` value is persisted throughout as long as this page is open
       web3ModalRef.current = new Web3Modal({
         network: 'goerli',
         providerOptions: {},
         disableInjectedProvider: false,
       });
       connectWallet();
+
+      // Check if presale has started and ended
+      const _presaleStarted = checkIfPresaleStarted();
+      if (_presaleStarted) {
+        checkIfPresaleEnded();
+      }
+
+      getTokenIdsMinted();
+
+      // Set an interval which gets called every 5 seconds to check presale has ended
+      const presaleEndedInterval = setInterval(async function () {
+        const _presaleStarted = await checkIfPresaleStarted();
+        if (_presaleStarted) {
+          const _presaleEnded = await checkIfPresaleEnded();
+          if (_presaleEnded) {
+            clearInterval(presaleEndedInterval);
+          }
+        }
+      }, 5 * 1000);
+
+      // set an interval to get the number of token Ids minted every 5 seconds
+      setInterval(async function () {
+        await getTokenIdsMinted();
+      }, 5 * 1000);
     }
-  }, []);
+  }, [walletConnected]);
+
+  //SECTION area to render in the return / done as a function
+  const renderButton = () => {
+    // this is incase the wallet isn't connected - they see button to connect wallet
+    if (!walletConnected) {
+      return (
+        <button onClick={connectWallet} className={styles.button}>
+          Connect Wallet
+        </button>
+      );
+    }
+    // if we are waiting for something to happen, return a button that says loading
+    if (loading) {
+      return <button className="styles button">Loading...</button>;
+    }
+
+    if (isOwner && !preSaleStarted) {
+      // render a button to start the presale
+      return (
+        <button className={styles.button} onClick={startPresale}>
+          Start Presale Now!
+        </button>
+      );
+    }
+    if (!preSaleStarted) {
+      // just say "presale hasn't started yet. come back later"
+      return (
+        <div>
+          <div className="styles description">
+            Presale hasn't started yet. Check back later!
+          </div>
+        </div>
+      );
+    }
+    if (preSaleStarted && !presaleEnded) {
+      // allows user to min in presale and they MUST be in whitelist for this to work
+      return (
+        <div>
+          <div className={styles.description}>
+            Presale has started!! If your address is whitelisted, mint a Crypto
+            Dev 🥳
+          </div>
+          <button className={styles.button} onClick={presaleMint}>
+            Presale Mint 🚀
+          </button>
+        </div>
+      );
+    }
+    if (presaleStarted && presaleEnded) {
+      // allow users to take part in public sale
+      return (
+        <button className={styles.button} onClick={publicMint}>
+          Public Mint! 🚀
+        </button>
+      );
+    }
+  };
 
   return (
     <div>
@@ -118,12 +228,29 @@ export default function Home() {
         <title>Chad's First NFT Attempt!</title>
       </Head>
       <div className={styles.main}>
-        {walletConnected ? null : (
-          <button onClick={connectWallet} className={styles.button}>
-            Connect Wallet
-          </button>
-        )}
+        <div>
+          <h1 className={styles.title}>
+            Welcome to Chad's Crypto Dev NFT Offering
+          </h1>
+          <div className={styles.description}>
+            This is a NFT collection to prepare for the DAO that is coming SOON!
+          </div>
+          <div className={styles.description}>
+            {tokenIdsMinted}/20 have been minted
+          </div>
+          {renderButton()}
+        </div>
+        <div>
+          <img
+            src="./public/0.svg"
+            alt="crypto devs image"
+            className={styles.image}
+          />
+        </div>
       </div>
+      <footer className={styles.footer}>
+        Made with &#10084; by Ender0530;
+      </footer>
     </div>
   );
 }
