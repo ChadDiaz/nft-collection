@@ -12,13 +12,13 @@ export default function Home() {
   // we need to be able to update state if the presale has started or stopped
   const [preSaleStarted, setPreSaleStarted] = useState(false);
   // we need to know if presale has ended
-  const [presaleEnded, setPresaleEnded] = useState(false);
+  const [preSaleEnded, setPresaleEnded] = useState(false);
   // one to know if the owner is the one signed in
   const [isOwner, setIsOwner] = useState(false);
   // one to keep track of the number of tokens that have been minted
   const [tokenIdsMinted, setTokenIdsMinted] = useState('0');
   // one to tell the app when something is happening and need to wait
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // NOTE instantiate web3 model here
   const web3ModalRef = useRef();
@@ -47,28 +47,29 @@ export default function Home() {
       await getProviderOrSigner();
       setWalletConnected(true);
     } catch (err) {
-      console.log(err);
+      console.log('this is where the error is coming from:', err);
     }
   };
 
   //NOTE we need a helper function so that only the owner can see the button to start the presale
   const getOwner = async () => {
     try {
-      const signer = await getProviderOrSigner();
+      const provider = await getProviderOrSigner(true);
       const nftContract = new Contract(
         NFT_CONTRACT_ABI,
         NFT_CONTRACT_ADDRESS,
-        signer
+        provider
       );
       // need a way to compare the current user address to the owner address
       const _owner = nftContract.owner();
-      const singer = getProviderOrSigner(true);
-      const address = await signer.getAddress();
+      const userAddress = getProviderOrSigner(true);
+      const address = await userAddress.getAddress();
       if (address.toLowerCase() === _owner.toLowerCase()) {
         setIsOwner(true);
       }
     } catch (error) {
       console.error(error);
+      console.log('error in the getOwner function', err);
     }
   };
 
@@ -87,10 +88,10 @@ export default function Home() {
         // value of the presale mint - using the utils feature from ethers to parse the string to ether
         value: utils.parseEther('0.001'),
       });
-      setLoading(true);
+      setIsLoading(true);
       // wait for the transaction to be mined
       await tx.wait();
-      setLoading(false);
+      setIsLoading(false);
       window.alert('You successfully minted a pre-sale NFT by Chad');
     } catch (err) {
       console.error(err);
@@ -111,10 +112,10 @@ export default function Home() {
       const tx = await nftContract.mint({
         value: utils.parseEther('0.01'),
       });
-      setLoading(true);
+      setIsLoading(true);
       // wait for the mint
       await tx.wait();
-      setLoading(false);
+      setIsLoading(false);
       window.alert("You've successfully minted a public NFT by Chad");
     } catch (err) {
       console.error(err);
@@ -131,9 +132,9 @@ export default function Home() {
         signer
       );
       const txn = await nftContract.startPresale();
-      setLoading(true);
+      setIsLoading(true);
       await txn.await();
-      setLoading(false);
+      setIsLoading(false);
       await checkIfPresaleStarted();
     } catch (error) {
       console.error(error);
@@ -255,7 +256,7 @@ export default function Home() {
       );
     }
     // if we are waiting for something to happen, return a button that says loading
-    if (loading) {
+    if (isLoading) {
       return <button className="styles button">Loading...</button>;
     }
 
@@ -277,7 +278,7 @@ export default function Home() {
         </div>
       );
     }
-    if (preSaleStarted && !presaleEnded) {
+    if (preSaleStarted && !preSaleEnded) {
       // allows user to min in presale and they MUST be in whitelist for this to work
       return (
         <div>
@@ -291,7 +292,7 @@ export default function Home() {
         </div>
       );
     }
-    if (presaleStarted && presaleEnded) {
+    if (preSaleStarted && preSaleEnded) {
       // allow users to take part in public sale
       return (
         <button className={styles.button} onClick={publicMint}>
