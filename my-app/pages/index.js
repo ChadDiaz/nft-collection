@@ -1,45 +1,81 @@
+import { Contract, providers, utils } from 'ethers';
 import Head from 'next/head';
-import { useEffect, useRef, useState } from 'react';
-import { ethers, Contract, utils } from 'ethers';
-import styles from '../styles/Home.module.css';
+import React, { useEffect, useRef, useState } from 'react';
 import Web3Modal from 'web3modal';
-import { NFT_CONTRACT_ABI, NFT_CONTRACT_ADDRESS } from '../constants';
+import { abi, NFT_CONTRACT_ADDRESS } from '../constants';
+import styles from '../styles/Home.module.css';
 
 export default function Home() {
-  // SECTION STATE VARIABLES
-  //first one - has the user connected to their wallet
+  // walletConnected keep track of whether the user's wallet is connected or not
   const [walletConnected, setWalletConnected] = useState(false);
-  // we need to be able to update state if the presale has started or stopped
-  const [preSaleStarted, setPreSaleStarted] = useState(false);
-  // we need to know if presale has ended
-  const [preSaleEnded, setPresaleEnded] = useState(false);
-  // one to know if the owner is the one signed in
+  // presaleStarted keeps track of whether the presale has started or not
+  const [presaleStarted, setPresaleStarted] = useState(false);
+  // presaleEnded keeps track of whether the presale ended
+  const [presaleEnded, setPresaleEnded] = useState(false);
+  // loading is set to true when we are waiting for a transaction to get mined
+  const [loading, setLoading] = useState(false);
+  // checks if the currently connected MetaMask wallet is the owner of the contract
   const [isOwner, setIsOwner] = useState(false);
-  // one to keep track of the number of tokens that have been minted
+  // tokenIdsMinted keeps track of the number of tokenIds that have been minted
   const [tokenIdsMinted, setTokenIdsMinted] = useState('0');
-  // one to tell the app when something is happening and need to wait
-  const [isLoading, setIsLoading] = useState(false);
-
-  // NOTE instantiate web3 model here
+  // Create a reference to the Web3 Modal (used for connecting to Metamask) which persists as long as the page is open
   const web3ModalRef = useRef();
-  // NOTE helper function to determine if signer and/ or provider is needed
-  const getProviderOrSigner = async (needSigner = false) => {
-    // we need a way to access the users provider, signer from Meta Mask
-    const provider = await web3ModalRef.current.connect();
-    const web3Provider = new ethers.providers.Web3Provider(provider);
-    // if the user isn't connected to goerli, have them switch to goerli
-    const { chainId } = await web3Provider.getNetwork();
-    if (chainId !== 5) {
-      window.alert('Please switch to the Goerli Network');
-      throw new Error('Incorrect Network - Need Goerli Network');
+
+  /**
+   * presaleMint: Mint an NFT during the presale
+   */
+  const presaleMint = async () => {
+    try {
+      // We need a Signer here since this is a 'write' transaction.
+      const signer = await getProviderOrSigner(true);
+      // Create a new instance of the Contract with a Signer, which allows
+      // update methods
+      const nftContract = new Contract(NFT_CONTRACT_ADDRESS, abi, signer);
+      // call the presaleMint from the contract, only whitelisted addresses would be able to mint
+      const tx = await nftContract.presaleMint({
+        // value signifies the cost of one crypto dev which is "0.01" eth.
+        // We are parsing `0.01` string to ether using the utils library from ethers.js
+        value: utils.parseEther('0.01'),
+      });
+      setLoading(true);
+      // wait for the transaction to get mined
+      await tx.wait();
+      setLoading(false);
+      window.alert('You successfully minted a Crypto Dev!');
+    } catch (err) {
+      console.error(err);
     }
-    if (needSigner) {
-      const signer = web3Provider.getSigner();
-      return signer;
-    }
-    return web3Provider;
   };
-  // NOTE first thing we want to do is to connect our wallet with web3modal and ethers.js
+
+  /**
+   * publicMint: Mint an NFT after the presale
+   */
+  const publicMint = async () => {
+    try {
+      // We need a Signer here since this is a 'write' transaction.
+      const signer = await getProviderOrSigner(true);
+      // Create a new instance of the Contract with a Signer, which allows
+      // update methods
+      const nftContract = new Contract(NFT_CONTRACT_ADDRESS, abi, signer);
+      // call the mint from the contract to mint the Crypto Dev
+      const tx = await nftContract.mint({
+        // value signifies the cost of one crypto dev which is "0.01" eth.
+        // We are parsing `0.01` string to ether using the utils library from ethers.js
+        value: utils.parseEther('0.01'),
+      });
+      setLoading(true);
+      // wait for the transaction to get mined
+      await tx.wait();
+      setLoading(false);
+      window.alert('You successfully minted a Crypto Dev!');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  /*
+    connectWallet: Connects the MetaMask wallet
+  */
   const connectWallet = async () => {
     try {
       // Get the provider from web3Modal, which in our case is MetaMask
@@ -47,134 +83,76 @@ export default function Home() {
       await getProviderOrSigner();
       setWalletConnected(true);
     } catch (err) {
-      console.log('this is where the error is coming from:', err);
-    }
-  };
-
-  //NOTE we need a helper function so that only the owner can see the button to start the presale
-  const getOwner = async () => {
-    try {
-      const provider = await getProviderOrSigner(true);
-      const nftContract = new Contract(
-        NFT_CONTRACT_ABI,
-        NFT_CONTRACT_ADDRESS,
-        provider
-      );
-      // need a way to compare the current user address to the owner address
-      const _owner = nftContract.owner();
-      const userAddress = getProviderOrSigner(true);
-      const address = await userAddress.getAddress();
-      if (address.toLowerCase() === _owner.toLowerCase()) {
-        setIsOwner(true);
-      }
-    } catch (error) {
-      console.error(error);
-      console.log('error in the getOwner function', err);
-    }
-  };
-
-  //NOTE we need a function to mint during the presale period
-  const presaleMint = async () => {
-    try {
-      // we need a signer here
-      const signer = await getProviderOrSigner(true);
-      const whitelistContract = new Contract(
-        NFT_CONTRACT_ABI,
-        NFT_CONTRACT_ADDRESS,
-        signer
-      );
-      // call the presale mint from the contract and ensure that only whitelisted addresses can mint
-      const tx = await whitelistContract.presaleMint({
-        // value of the presale mint - using the utils feature from ethers to parse the string to ether
-        value: utils.parseEther('0.001'),
-      });
-      setIsLoading(true);
-      // wait for the transaction to be mined
-      await tx.wait();
-      setIsLoading(false);
-      window.alert('You successfully minted a pre-sale NFT by Chad');
-    } catch (err) {
       console.error(err);
     }
   };
 
-  //NOTE we need a function to mint during the public sale/after presale
-  const publicMint = async () => {
-    try {
-      // anytime it is a write transaction - we need signer
-      const signer = await getProviderOrSigner(true);
-      const nftContract = new Contract(
-        NFT_CONTRACT_ABI,
-        NFT_CONTRACT_ADDRESS,
-        signer
-      );
-      // call the mint from the contract
-      const tx = await nftContract.mint({
-        value: utils.parseEther('0.01'),
-      });
-      setIsLoading(true);
-      // wait for the mint
-      await tx.wait();
-      setIsLoading(false);
-      window.alert("You've successfully minted a public NFT by Chad");
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  //NOTE we need  function to start the preSale only callable by the owner
+  /**
+   * startPresale: starts the presale for the NFT Collection
+   */
   const startPresale = async () => {
     try {
+      // We need a Signer here since this is a 'write' transaction.
       const signer = await getProviderOrSigner(true);
-      const nftContract = new Contract(
-        NFT_CONTRACT_ABI,
-        NFT_CONTRACT_ADDRESS,
-        signer
-      );
-      const txn = await nftContract.startPresale();
-      setIsLoading(true);
-      await txn.await();
-      setIsLoading(false);
+      // Create a new instance of the Contract with a Signer, which allows
+      // update methods
+      const nftContract = new Contract(NFT_CONTRACT_ADDRESS, abi, signer);
+      // call the startPresale from the contract
+      const tx = await nftContract.startPresale();
+      setLoading(true);
+      // wait for the transaction to get mined
+      await tx.wait();
+      setLoading(false);
+      // set the presale started to true
       await checkIfPresaleStarted();
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  //NOTE we need a function to see if the preSale has started only callable by the owner
+  /**
+   * checkIfPresaleStarted: checks if the presale has started by querying the `presaleStarted`
+   * variable in the contract
+   */
   const checkIfPresaleStarted = async () => {
     try {
-      // need to get a provider or signer
+      // Get the provider from web3Modal, which in our case is MetaMask
+      // No need for the Signer here, as we are only reading state from the blockchain
       const provider = await getProviderOrSigner();
-      // get an instance of your NFT contract
-      const nftContract = new Contract(
-        NFT_CONTRACT_ABI,
-        NFT_CONTRACT_ADDRESS,
-        provider
-      );
-      const _presaleStarted = await nftContract.preSaleStarted();
+      // We connect to the Contract using a Provider, so we will only
+      // have read-only access to the Contract
+      const nftContract = new Contract(NFT_CONTRACT_ADDRESS, abi, provider);
+      // call the presaleStarted from the contract
+      const _presaleStarted = await nftContract.presaleStarted();
       if (!_presaleStarted) {
         await getOwner();
       }
-      setPreSaleStarted(_presaleStarted);
+      setPresaleStarted(_presaleStarted);
       return _presaleStarted;
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       return false;
     }
   };
 
-  //NOTE we need a function to see if the presale has ended only called by the owner
+  /**
+   * checkIfPresaleEnded: checks if the presale has ended by querying the `presaleEnded`
+   * variable in the contract
+   */
   const checkIfPresaleEnded = async () => {
     try {
-      const signer = await getProviderOrSigner();
-      const nftContract = new Contract(
-        NFT_CONTRACT_ABI,
-        NFT_CONTRACT_ADDRESS,
-        signer
-      );
-      //NOTE presaleEndTime returns a BIG NUMBER and a timestamp in seconds.  Date.now returns in milliseconds so we divide Date.now by 1000 to compare
+      // Get the provider from web3Modal, which in our case is MetaMask
+      // No need for the Signer here, as we are only reading state from the blockchain
+      const provider = await getProviderOrSigner();
+      // We connect to the Contract using a Provider, so we will only
+      // have read-only access to the Contract
+      const nftContract = new Contract(NFT_CONTRACT_ADDRESS, abi, provider);
+      // call the presaleEnded from the contract
       const _presaleEnded = await nftContract.presaleEnded();
+      // _presaleEnded is a Big Number, so we are using the lt(less than function) instead of `<`
+      // Date.now()/1000 returns the current time in seconds
+      // We compare if the _presaleEnded timestamp is less than the current time
+      // which means presale has ended
       const hasEnded = _presaleEnded.lt(Math.floor(Date.now() / 1000));
       if (hasEnded) {
         setPresaleEnded(true);
@@ -188,25 +166,74 @@ export default function Home() {
     }
   };
 
-  //NOTE need a function to get the total number of tokenIds minted
+  /**
+   * getOwner: calls the contract to retrieve the owner
+   */
+  const getOwner = async () => {
+    try {
+      // Get the provider from web3Modal, which in our case is MetaMask
+      // No need for the Signer here, as we are only reading state from the blockchain
+      const provider = await getProviderOrSigner();
+      // We connect to the Contract using a Provider, so we will only
+      // have read-only access to the Contract
+      const nftContract = new Contract(NFT_CONTRACT_ADDRESS, abi, provider);
+      // call the owner function from the contract
+      const _owner = await nftContract.owner();
+      // We will get the signer now to extract the address of the currently connected MetaMask account
+      const signer = await getProviderOrSigner(true);
+      // Get the address associated to the signer which is connected to  MetaMask
+      const address = await signer.getAddress();
+      if (address.toLowerCase() === _owner.toLowerCase()) {
+        setIsOwner(true);
+      }
+    } catch (err) {
+      console.error(err.message);
+    }
+  };
+
+  /**
+   * getTokenIdsMinted: gets the number of tokenIds that have been minted
+   */
   const getTokenIdsMinted = async () => {
     try {
-      // only need a provider here
-      const provider = getProviderOrSigner();
-      const nftContract = new Contract(
-        NFT_CONTRACT_ABI,
-        NFT_CONTRACT_ADDRESS,
-        provider
-      );
-      // get a variable for the tokens
+      // Get the provider from web3Modal, which in our case is MetaMask
+      // No need for the Signer here, as we are only reading state from the blockchain
+      const provider = await getProviderOrSigner();
+      // We connect to the Contract using a Provider, so we will only
+      // have read-only access to the Contract
+      const nftContract = new Contract(NFT_CONTRACT_ADDRESS, abi, provider);
+      // call the tokenIds from the contract
       const _tokenIds = await nftContract.tokenIds();
-      // tokenIds is a BIG number so we set it to a string
+      //_tokenIds is a `Big Number`. We need to convert the Big Number to a string
       setTokenIdsMinted(_tokenIds.toString());
     } catch (err) {
       console.error(err);
     }
   };
-  // NOTE useEffect to be called each time the state needs to re-render
+
+  const getProviderOrSigner = async (needSigner = false) => {
+    // Connect to Metamask
+    // Since we store `web3Modal` as a reference, we need to access the `current` value to get access to the underlying object
+    const provider = await web3ModalRef.current.connect();
+    const web3Provider = new providers.Web3Provider(provider);
+
+    // If user is not connected to the Goerli network, let them know and throw an error
+    const { chainId } = await web3Provider.getNetwork();
+    if (chainId !== 5) {
+      window.alert('Change the network to Goerli');
+      throw new Error('Change network to Goerli');
+    }
+
+    if (needSigner) {
+      const signer = web3Provider.getSigner();
+      return signer;
+    }
+    return web3Provider;
+  };
+
+  // useEffects are used to react to changes in state of the website
+  // The array at the end of function call represents what state changes will trigger this effect
+  // In this case, whenever the value of `walletConnected` changes - this effect will be called
   useEffect(() => {
     // if wallet is not connected, create a new instance of Web3Modal and connect the MetaMask wallet
     if (!walletConnected) {
@@ -245,45 +272,48 @@ export default function Home() {
     }
   }, [walletConnected]);
 
-  //SECTION area to render in the return / done as a function
+  /*
+    renderButton: Returns a button based on the state of the dapp
+  */
   const renderButton = () => {
-    // this is incase the wallet isn't connected - they see button to connect wallet
+    // If wallet is not connected, return a button which allows them to connect their wallet
     if (!walletConnected) {
       return (
         <button onClick={connectWallet} className={styles.button}>
-          Connect Wallet
+          Connect your wallet
         </button>
       );
-    }
-    // if we are waiting for something to happen, return a button that says loading
-    if (isLoading) {
-      return <button className="styles button">Loading...</button>;
     }
 
-    if (isOwner && !preSaleStarted) {
-      // render a button to start the presale
+    // If we are currently waiting for something, return a loading button
+    if (loading) {
+      return <button className={styles.button}>Loading...</button>;
+    }
+
+    // If connected user is the owner, and presale hasn't started yet, allow them to start the presale
+    if (isOwner && !presaleStarted) {
       return (
         <button className={styles.button} onClick={startPresale}>
-          Start Presale Now!
+          Start Presale!
         </button>
       );
     }
-    if (!preSaleStarted) {
-      // just say "presale hasn't started yet. come back later"
+
+    // If connected user is not the owner but presale hasn't started yet, tell them that
+    if (!presaleStarted) {
       return (
         <div>
-          <div className="styles description">
-            Presale hasn't started yet. Check back later!
-          </div>
+          <div className={styles.description}>Presale hasn't started!</div>
         </div>
       );
     }
-    if (preSaleStarted && !preSaleEnded) {
-      // allows user to min in presale and they MUST be in whitelist for this to work
+
+    // If presale started, but hasn't ended yet, allow for minting during the presale period
+    if (presaleStarted && !presaleEnded) {
       return (
         <div>
           <div className={styles.description}>
-            Presale has started!! If your address is whitelisted, mint a Crypto
+            Presale has started!!! If your address is whitelisted, Mint a Crypto
             Dev 🥳
           </div>
           <button className={styles.button} onClick={presaleMint}>
@@ -292,11 +322,12 @@ export default function Home() {
         </div>
       );
     }
-    if (preSaleStarted && preSaleEnded) {
-      // allow users to take part in public sale
+
+    // If presale started and has ended, its time for public minting
+    if (presaleStarted && presaleEnded) {
       return (
         <button className={styles.button} onClick={publicMint}>
-          Public Mint! 🚀
+          Public Mint 🚀
         </button>
       );
     }
@@ -305,15 +336,15 @@ export default function Home() {
   return (
     <div>
       <Head>
-        <title>Chad's First NFT Attempt!</title>
+        <title>Ender0530 NFT Offer</title>
+        <meta name="description" content="Whitelist-Dapp" />
+        <link rel="icon" href="/favicon.ico" />
       </Head>
       <div className={styles.main}>
         <div>
-          <h1 className={styles.title}>
-            Welcome to Chad's Crypto Dev NFT Offering
-          </h1>
+          <h1 className={styles.title}>Welcome to Ender0530 NFT Offering</h1>
           <div className={styles.description}>
-            This is a NFT collection to prepare for the DAO that is coming SOON!
+            This is an NFT for Ender0530 Soon to come DAO.
           </div>
           <div className={styles.description}>
             {tokenIdsMinted}/20 have been minted
@@ -321,16 +352,11 @@ export default function Home() {
           {renderButton()}
         </div>
         <div>
-          <img
-            src="./public/cryptodev/0.svg"
-            alt="crypto devs image"
-            className={styles.image}
-          />
+          <img className={styles.image} src="./public/cryptodevs/0.svg" />
         </div>
       </div>
-      <footer className={styles.footer}>
-        Made with &#10084; by Ender0530;
-      </footer>
+
+      <footer className={styles.footer}>Made with &#10084; by Ender0530</footer>
     </div>
   );
 }
